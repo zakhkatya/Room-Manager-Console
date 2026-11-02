@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Globalization;
 using RoomReservationManager.Models;
 using Spectre.Console;
@@ -57,7 +56,7 @@ public class ConsoleView : IAppView
         table.AddColumn("[bold]Capacity[/]");
 
         foreach (var r in rooms)
-            table.AddRow(r.Id.ToString(), Markup.Escape(r.Name), r.Capacity.ToString());
+            table.AddRow(r.Id.ToString(), r.Capacity.ToString());
 
         AnsiConsole.Write(table);
     }
@@ -113,20 +112,6 @@ public class ConsoleView : IAppView
 
     // ---------- Forms ----------
 
-    private static int AskInt(string label, int? current = null, int min = 1)
-    {
-        var prompt = new TextPrompt<int>(label)
-            .ValidationErrorMessage("[red]Please enter a valid whole number.[/]")
-            .Validate(n => n >= min
-                ? ValidationResult.Success()
-                : ValidationResult.Error($"[red]Must be at least {min}.[/]"));
-
-        if (current.HasValue)
-            prompt.DefaultValue(current.Value);
-
-        return AnsiConsole.Prompt(prompt);
-    }
-
     public ReservationInput AskReservation(IReadOnlyList<Room> rooms, Reservation? existing = null)
     {
         var eventName = AskText("Event name:", existing?.EventName);
@@ -145,19 +130,17 @@ public class ConsoleView : IAppView
         return new ReservationInput(startsAt, endsAt, eventName, reservedName, notes, numPeople, room.Id);
     }
 
+    public int AskRoomCapacity(int? current = null) => AskInt("Room capacity:", current);
+
     // ---------- Messages ----------
 
-    public bool Confirm(string question) =>
-        AnsiConsole.Confirm(Markup.Escape(question), defaultValue: false);
+    public bool Confirm(string question) => AnsiConsole.Confirm(Markup.Escape(question), defaultValue: false);
 
-    public void ShowSuccess(string message) =>
-        AnsiConsole.MarkupLine($"[green]{Markup.Escape(message)}[/]");
+    public void ShowSuccess(string message) => AnsiConsole.MarkupLine($"[green]{Markup.Escape(message)}[/]");
 
-    public void ShowError(string message) =>
-        AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(message)}");
+    public void ShowError(string message) => AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(message)}");
 
-    public void ShowInfo(string message) =>
-        AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(message)}[/]");
+    public void ShowInfo(string message) => AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(message)}[/]");
 
     public void Pause()
     {
@@ -169,13 +152,27 @@ public class ConsoleView : IAppView
 
     // ---------- Helpers ----------
 
-    private static string RoomLabel(Room r) => $"Room {r.Id} ({(r.IsBig ? "Big" : "Small")})";
+    private static string RoomLabel(Room r) => $"Capacity: {r.Capacity}";
 
     private static string AskText(string label, string? current = null, bool allowEmpty = false)
     {
         var prompt = new TextPrompt<string>(label);
         if (allowEmpty) prompt.AllowEmpty();
         if (!string.IsNullOrEmpty(current)) prompt.DefaultValue(current);
+        return AnsiConsole.Prompt(prompt);
+    }
+
+    private static int AskInt(string label, int? current = null, int min = 1)
+    {
+        var prompt = new TextPrompt<int>(label)
+            .ValidationErrorMessage("[red]Please enter a valid whole number.[/]")
+            .Validate(n => n >= min
+                ? ValidationResult.Success()
+                : ValidationResult.Error($"[red]Must be at least {min}.[/]"));
+
+        if (current.HasValue)
+            prompt.DefaultValue(current.Value);
+
         return AnsiConsole.Prompt(prompt);
     }
 
@@ -197,7 +194,9 @@ public class ConsoleView : IAppView
         if (current.HasValue)
             prompt.DefaultValue(current.Value.ToString(DateFormat));
 
-        var text = AnsiConsole.Prompt(prompt);
+        var text = AskDateText(prompt);
         return DateTime.ParseExact(text, DateFormat, CultureInfo.InvariantCulture);
     }
+
+    private static string AskDateText(TextPrompt<string> prompt) => AnsiConsole.Prompt(prompt);
 }

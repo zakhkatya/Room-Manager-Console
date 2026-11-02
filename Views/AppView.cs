@@ -22,7 +22,7 @@ public interface IAppView
     void ShowRooms(IReadOnlyList<Room> rooms);
     void ShowReservations(IReadOnlyList<Reservation> reservations);
 
-    bool AskRoomIsBig(bool? current = null);
+    int AskRoomCapacity(int? current = null);
     Room PickRoom(IReadOnlyList<Room> rooms, string action);
     Reservation PickReservation(IReadOnlyList<Reservation> reservations, string action);
     ReservationInput AskReservation(IReadOnlyList<Room> rooms, Reservation? existing = null);
