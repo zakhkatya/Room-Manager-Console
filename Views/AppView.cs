@@ -22,6 +22,7 @@ public interface IAppView
     void ShowRooms(IReadOnlyList<Room> rooms);
     void ShowReservations(IReadOnlyList<Reservation> reservations);
 
+    string AskRoomName(string? current = null);
     int AskRoomCapacity(int? current = null);
     Room PickRoom(IReadOnlyList<Room> rooms, string action);
     Reservation PickReservation(IReadOnlyList<Reservation> reservations, string action);

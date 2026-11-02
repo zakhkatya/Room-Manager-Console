@@ -56,7 +56,7 @@ public class ConsoleView : IAppView
         table.AddColumn("[bold]Capacity[/]");
 
         foreach (var r in rooms)
-            table.AddRow(r.Id.ToString(), r.Capacity.ToString());
+            table.AddRow(r.Id.ToString(), Markup.Escape(r.RoomName), r.Capacity.ToString());
 
         AnsiConsole.Write(table);
     }
@@ -130,6 +130,8 @@ public class ConsoleView : IAppView
         return new ReservationInput(startsAt, endsAt, eventName, reservedName, notes, numPeople, room.Id);
     }
 
+    public string AskRoomName(string? current = null) => AskText("Room name:", current);
+
     public int AskRoomCapacity(int? current = null) => AskInt("Room capacity:", current);
 
     // ---------- Messages ----------
@@ -152,7 +154,7 @@ public class ConsoleView : IAppView
 
     // ---------- Helpers ----------
 
-    private static string RoomLabel(Room r) => $"Capacity: {r.Capacity}";
+    private static string RoomLabel(Room r) => $"{Markup.Escape(r.RoomName)} (capacity {r.Capacity})";
 
     private static string AskText(string label, string? current = null, bool allowEmpty = false)
     {
@@ -194,9 +196,8 @@ public class ConsoleView : IAppView
         if (current.HasValue)
             prompt.DefaultValue(current.Value.ToString(DateFormat));
 
-        var text = AskDateText(prompt);
+        var text = AnsiConsole.Prompt(prompt);
         return DateTime.ParseExact(text, DateFormat, CultureInfo.InvariantCulture);
     }
 
-    private static string AskDateText(TextPrompt<string> prompt) => AnsiConsole.Prompt(prompt);
 }
