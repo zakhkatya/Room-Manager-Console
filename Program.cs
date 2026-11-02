@@ -9,7 +9,7 @@ internal class Program
     static void Main(string[] args)
     {
         var roomModel = new RoomModel();
-        roomModel.CreateTable();            // rooms first, reservations reference them
+        roomModel.CreateTable();
 
         var reservationModel = new ReservationModel();
         reservationModel.CreateTable();

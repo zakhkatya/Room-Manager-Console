@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using RoomReservationManager.Models;
 using Spectre.Console;
@@ -41,8 +42,7 @@ public class ConsoleView : IAppView
                     SectionChoice.Delete => "Delete",
                     _ => "Back"
                 })
-                .AddChoices(SectionChoice.Show, SectionChoice.Add,
-                            SectionChoice.Edit, SectionChoice.Delete, SectionChoice.Back));
+                .AddChoices(SectionChoice.Show, SectionChoice.Add, SectionChoice.Edit, SectionChoice.Delete, SectionChoice.Back));
     }
 
     // ---------- Tables ----------
@@ -53,10 +53,11 @@ public class ConsoleView : IAppView
 
         var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
         table.AddColumn("[bold]ID[/]");
-        table.AddColumn("[bold]Size[/]");
+        table.AddColumn("[bold]Name[/]");
+        table.AddColumn("[bold]Capacity[/]");
 
         foreach (var r in rooms)
-            table.AddRow(r.Id.ToString(), r.IsBig ? "Big" : "Small");
+            table.AddRow(r.Id.ToString(), Markup.Escape(r.Name), r.Capacity.ToString());
 
         AnsiConsole.Write(table);
     }
@@ -71,6 +72,7 @@ public class ConsoleView : IAppView
         table.AddColumn("[bold]Reserved by[/]");
         table.AddColumn("[bold]Start[/]");
         table.AddColumn("[bold]End[/]");
+        table.AddColumn("[bold]Number of people[/]");
         table.AddColumn("[bold]Room[/]");
         table.AddColumn("[bold]Notes[/]");
 
@@ -82,6 +84,7 @@ public class ConsoleView : IAppView
                 Markup.Escape(r.ReservedName),
                 r.StartsAt.ToString("dd.MM.yyyy HH:mm"),
                 r.EndsAt.ToString("dd.MM.yyyy HH:mm"),
+                r.NumPeople.ToString(),
                 r.RoomId.ToString(),
                 Markup.Escape(r.Notes));
         }
@@ -110,17 +113,18 @@ public class ConsoleView : IAppView
 
     // ---------- Forms ----------
 
-    public bool AskRoomIsBig(bool? current = null)
+    private static int AskInt(string label, int? current = null, int min = 1)
     {
-        var title = current is null
-            ? "Room size:"
-            : $"Room size (currently {(current.Value ? "Big" : "Small")}):";
+        var prompt = new TextPrompt<int>(label)
+            .ValidationErrorMessage("[red]Please enter a valid whole number.[/]")
+            .Validate(n => n >= min
+                ? ValidationResult.Success()
+                : ValidationResult.Error($"[red]Must be at least {min}.[/]"));
 
-        return AnsiConsole.Prompt(
-            new SelectionPrompt<bool>()
-                .Title(title)
-                .UseConverter(big => big ? "Big" : "Small")
-                .AddChoices(false, true));
+        if (current.HasValue)
+            prompt.DefaultValue(current.Value);
+
+        return AnsiConsole.Prompt(prompt);
     }
 
     public ReservationInput AskReservation(IReadOnlyList<Room> rooms, Reservation? existing = null)
@@ -129,6 +133,7 @@ public class ConsoleView : IAppView
         var reservedName = AskText("Reserved by:", existing?.ReservedName);
         var startsAt = AskDate("Start", existing?.StartsAt);
         var endsAt = AskDate("End", existing?.EndsAt, after: startsAt);
+        var numPeople = AskInt("Number of people:", existing?.NumPeople);
         var notes = AskText("Notes:", existing?.Notes, allowEmpty: true);
 
         var room = AnsiConsole.Prompt(
@@ -137,7 +142,7 @@ public class ConsoleView : IAppView
                 .UseConverter(RoomLabel)
                 .AddChoices(rooms));
 
-        return new ReservationInput(startsAt, endsAt, eventName, reservedName, notes, room.Id);
+        return new ReservationInput(startsAt, endsAt, eventName, reservedName, notes, numPeople, room.Id);
     }
 
     // ---------- Messages ----------

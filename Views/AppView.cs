@@ -6,9 +6,13 @@ public enum MainChoice { Reservations, Rooms, Exit }
 public enum SectionChoice { Show, Add, Edit, Delete, Back }
 
 public record ReservationInput(
-    DateTime StartsAt, DateTime EndsAt,
-    string EventName, string ReservedName,
-    string Notes, int RoomId);
+    DateTime StartsAt, 
+    DateTime EndsAt,
+    string EventName, 
+    string ReservedName,
+    string Notes, 
+    int NumPeople,
+    int RoomId);
 
 public interface IAppView
 {
