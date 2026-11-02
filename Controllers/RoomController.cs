@@ -23,11 +23,12 @@ public class RoomController : ISectionController
 
     public void Add()
     {
-        var isBig = _view.AskRoomIsBig();
+        var roomName = _view.AskRoomName();
+        var capacity = _view.AskRoomCapacity();
 
         try
         {
-            _model.Add(isBig);
+            _model.Add(roomName, capacity);
             _view.ShowSuccess("Room added successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }
@@ -39,11 +40,12 @@ public class RoomController : ISectionController
         if (rooms.Count == 0) { _view.ShowInfo("No rooms to edit."); return; }
 
         var room = _view.PickRoom(rooms, "edit");
-        var isBig = _view.AskRoomIsBig(room.IsBig);
+        var roomName = _view.AskRoomName(room.RoomName);
+        var capacity = _view.AskRoomCapacity(room.Capacity);
 
         try
         {
-            _model.Update(room.Id, isBig);
+            _model.Update(room.Id, roomName, capacity);
             _view.ShowSuccess("Room updated successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }
@@ -56,7 +58,7 @@ public class RoomController : ISectionController
 
         var room = _view.PickRoom(rooms, "delete");
 
-        if (!_view.Confirm($"Delete room {room.Id}?"))
+        if (!_view.Confirm($"Delete room \"{room.RoomName}\"?"))
         {
             _view.ShowInfo("Deletion cancelled.");
             return;
@@ -64,7 +66,7 @@ public class RoomController : ISectionController
 
         try
         {
-            _model.Delete(room.Id);   // throws if the room has reservations (see earlier fix)
+            _model.Delete(room.Id);   // throws if the room has reservations
             _view.ShowSuccess("Room deleted successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }

@@ -15,7 +15,7 @@ public class RoomModel
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS Room (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                RoomName TEXT NO NULL
+                RoomName TEXT NOT NULL,
                 Capacity INTEGER NOT NULL
             );
             """;
@@ -42,7 +42,7 @@ public class RoomModel
             {
                 Id = reader.GetInt32(0),
                 RoomName = reader.GetString(1),
-                Capacity = reader.GetInt32(1)
+                Capacity = reader.GetInt32(2)
             });
         }
 

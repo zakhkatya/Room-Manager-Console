@@ -38,8 +38,7 @@ public class ReservationController : ISectionController
 
         try
         {
-            _model.Add(input.StartsAt, input.EndsAt, input.EventName,
-                       input.ReservedName, input.Notes, input.RoomId);
+            _model.Add(input.StartsAt, input.EndsAt, input.EventName, input.NumPeople, input.ReservedName, input.Notes, input.RoomId);
             _view.ShowSuccess("Reservation added successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }
@@ -62,7 +61,7 @@ public class ReservationController : ISectionController
         try
         {
             _model.Update(existing.Id, input.StartsAt, input.EndsAt, input.EventName,
-                          input.ReservedName, input.Notes, input.RoomId);
+                          input.NumPeople, input.ReservedName, input.Notes, input.RoomId);
             _view.ShowSuccess("Reservation updated successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }
