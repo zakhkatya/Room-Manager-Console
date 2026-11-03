@@ -1,6 +1,7 @@
 using System.Globalization;
 using RoomReservationManager.Models;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace RoomReservationManager.Views;
 
@@ -43,40 +44,18 @@ public class ConsoleView : IAppView
                 .AddChoices(SectionChoice.Show, SectionChoice.Add, SectionChoice.Edit, SectionChoice.Delete, SectionChoice.Back));
     }
 
-    // ---------- Tables ----------
+    // ---------- Tables (paged) ----------
 
-    public void ShowRooms(IReadOnlyList<Room> rooms)
-    {
-        AnsiConsole.Write(new Rule("[yellow]Rooms[/]").LeftJustified());
+    public void ShowRooms(IReadOnlyList<Room> rooms) =>
+        ShowPaged("Rooms", rooms, pageSize: 10,
+            columns: ["ID", "Name", "Capacity"],
+            toRow: r => [r.Id.ToString(), Markup.Escape(r.RoomName), r.Capacity.ToString()]);
 
-        var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
-        table.AddColumn("[bold]ID[/]");
-        table.AddColumn("[bold]Name[/]");
-        table.AddColumn("[bold]Capacity[/]");
-
-        foreach (var r in rooms)
-            table.AddRow(r.Id.ToString(), Markup.Escape(r.RoomName), r.Capacity.ToString());
-
-        AnsiConsole.Write(table);
-    }
-
-    public void ShowReservations(IReadOnlyList<Reservation> reservations)
-    {
-        AnsiConsole.Write(new Rule("[yellow]Reservations[/]").LeftJustified());
-
-        var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
-        table.AddColumn("[bold]ID[/]");
-        table.AddColumn("[bold]Event[/]");
-        table.AddColumn("[bold]Reserved by[/]");
-        table.AddColumn("[bold]Start[/]");
-        table.AddColumn("[bold]End[/]");
-        table.AddColumn("[bold]Number of people[/]");
-        table.AddColumn("[bold]Room[/]");
-        table.AddColumn("[bold]Notes[/]");
-
-        foreach (var r in reservations)
-        {
-            table.AddRow(
+    public void ShowReservations(IReadOnlyList<Reservation> reservations) =>
+        ShowPaged("Reservations", reservations, pageSize: 8,
+            columns: ["ID", "Event", "Reserved by", "Start", "End", "Number of people", "Room", "Notes"],
+            toRow: r =>
+            [
                 r.Id.ToString(),
                 Markup.Escape(r.EventName),
                 Markup.Escape(r.ReservedName),
@@ -84,10 +63,74 @@ public class ConsoleView : IAppView
                 r.EndsAt.ToString("dd.MM.yyyy HH:mm"),
                 r.NumPeople.ToString(),
                 r.RoomId.ToString(),
-                Markup.Escape(r.Notes));
+                Markup.Escape(r.Notes)
+            ]);
+
+    // Generic pager: arrow keys switch pages and only the table is redrawn (Live display),
+    // not the whole screen.
+    private static void ShowPaged<T>(
+        string title,
+        IReadOnlyList<T> items,
+        int pageSize,
+        string[] columns,
+        Func<T, string[]> toRow)
+    {
+        AnsiConsole.Write(new Rule($"[yellow]{Markup.Escape(title)}[/]").LeftJustified());
+
+        var pageCount = Math.Max(1, (items.Count + pageSize - 1) / pageSize);
+        var page = 0;
+
+        IRenderable Render()
+        {
+            var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
+            foreach (var c in columns) table.AddColumn($"[bold]{c}[/]");
+
+            var pageItems = items.Skip(page * pageSize).Take(pageSize).ToList();
+            foreach (var item in pageItems) table.AddRow(toRow(item));
+
+            // keep the table the same height on the last page so the layout doesn't jump
+            if (pageCount > 1)
+                for (var i = pageItems.Count; i < pageSize; i++)
+                    table.AddEmptyRow();
+
+            var footer = pageCount > 1
+                ? $"[grey]Page {page + 1}/{pageCount} ({items.Count} total)  |  Left/Right: change page  |  Home/End: first/last  |  Esc: back[/]"
+                : $"[grey]{items.Count} total[/]";
+
+            return new Rows(table, new Markup(footer));
         }
 
-        AnsiConsole.Write(table);
+        if (pageCount == 1)
+        {
+            AnsiConsole.Write(Render());
+            return;
+        }
+
+        AnsiConsole.Live(Render()).Start(ctx =>
+        {
+            while (true)
+            {
+                var key = Console.ReadKey(true).Key;
+
+                if (key is ConsoleKey.Escape or ConsoleKey.Enter or ConsoleKey.Q)
+                    break;
+
+                var newPage = key switch
+                {
+                    ConsoleKey.RightArrow or ConsoleKey.DownArrow or ConsoleKey.PageDown => Math.Min(page + 1, pageCount - 1),
+                    ConsoleKey.LeftArrow or ConsoleKey.UpArrow or ConsoleKey.PageUp => Math.Max(page - 1, 0),
+                    ConsoleKey.Home => 0,
+                    ConsoleKey.End => pageCount - 1,
+                    _ => page
+                };
+
+                if (newPage == page) continue;
+
+                page = newPage;
+                ctx.UpdateTarget(Render());
+                ctx.Refresh();
+            }
+        });
     }
 
     // ---------- Pickers (arrow keys instead of typing IDs) ----------
@@ -96,6 +139,7 @@ public class ConsoleView : IAppView
         AnsiConsole.Prompt(
             new SelectionPrompt<Room>()
                 .Title($"Which room do you want to {Markup.Escape(action)}?")
+                .PageSize(10)
                 .UseConverter(RoomLabel)
                 .AddChoices(rooms));
 
@@ -110,23 +154,32 @@ public class ConsoleView : IAppView
                 .AddChoices(reservations));
 
     // ---------- Forms ----------
-
-    public ReservationInput AskReservation(IReadOnlyList<Room> rooms, Reservation? existing = null)
+    public ReservationSlot AskSlot(Reservation? existing = null)
     {
-        var eventName = AskText("Event name:", existing?.EventName);
-        var reservedName = AskText("Reserved by:", existing?.ReservedName);
         var startsAt = AskStart(existing?.StartsAt);
         var endsAt = AskEnd(startsAt, existing?.EndsAt);
         var numPeople = AskInt("Number of people:", existing?.NumPeople);
-        var notes = AskText("Notes:", existing?.Notes, allowEmpty: true);
+        return new ReservationSlot(startsAt, endsAt, numPeople);
+    }
 
-        var room = AnsiConsole.Prompt(
+    public Room PickAvailableRoom(IReadOnlyList<Room> availableRooms, ReservationSlot slot, int? currentRoomId = null) =>
+        AnsiConsole.Prompt(
             new SelectionPrompt<Room>()
-                .Title("Room:")
-                .UseConverter(RoomLabel)
-                .AddChoices(rooms));
+                .Title($"Available rooms for [bold]{slot.NumPeople}[/] people, " +
+                       $"{slot.StartsAt:dd.MM HH:mm}-{slot.EndsAt:HH:mm}:")
+                .PageSize(10)
+                .MoreChoicesText("[grey](Move up and down to see more rooms)[/]")
+                .UseConverter(r => RoomLabel(r) + (r.Id == currentRoomId ? " (current)" : ""))
+                .AddChoices(availableRooms
+                    .OrderByDescending(r => r.Id == currentRoomId)
+                    .ThenBy(r => r.Capacity)));
 
-        return new ReservationInput(startsAt, endsAt, eventName, reservedName, notes, numPeople, room.Id);
+    public ReservationDetails AskDetails(Reservation? existing = null)
+    {
+        var eventName = AskText("Event name:", existing?.EventName);
+        var reservedName = AskText("Reserved by:", existing?.ReservedName);
+        var notes = AskText("Notes:", existing?.Notes, allowEmpty: true);
+        return new ReservationDetails(eventName, reservedName, notes);
     }
 
     public string AskRoomName(string? current = null) => AskText("Room name:", current);

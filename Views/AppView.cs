@@ -4,15 +4,8 @@ namespace RoomReservationManager.Views;
 
 public enum MainChoice { Reservations, Rooms, Exit }
 public enum SectionChoice { Show, Add, Edit, Delete, Back }
-
-public record ReservationInput(
-    DateTime StartsAt, 
-    DateTime EndsAt,
-    string EventName, 
-    string ReservedName,
-    string Notes, 
-    int NumPeople,
-    int RoomId);
+public record ReservationSlot(DateTime StartsAt, DateTime EndsAt, int NumPeople);
+public record ReservationDetails(string EventName, string ReservedName, string Notes);
 
 public interface IAppView
 {
@@ -26,7 +19,9 @@ public interface IAppView
     int AskRoomCapacity(int? current = null);
     Room PickRoom(IReadOnlyList<Room> rooms, string action);
     Reservation PickReservation(IReadOnlyList<Reservation> reservations, string action);
-    ReservationInput AskReservation(IReadOnlyList<Room> rooms, Reservation? existing = null);
+    ReservationSlot AskSlot(Reservation? existing = null);
+    Room PickAvailableRoom(IReadOnlyList<Room> availableRooms, ReservationSlot slot, int? currentRoomId = null);
+    ReservationDetails AskDetails(Reservation? existing = null);
 
     bool Confirm(string question);
     void ShowSuccess(string message);

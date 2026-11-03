@@ -25,20 +25,20 @@ public class ReservationController : ISectionController
 
     public void Add()
     {
-        var rooms = _roomModel.GetAll();
-        if (rooms.Count == 0) { _view.ShowError("No rooms exist yet. Add a room first."); return; }
+        if (_roomModel.GetAll().Count == 0) { _view.ShowError("No rooms exist yet. Add a room first."); return; }
 
-        var input = _view.AskReservation(rooms);
-
-        if (HasConflict(input, ignoreId: null))
+        if (ChooseSlotAndRoom(existing: null) is not { } chosen)
         {
-            _view.ShowError("That room is already reserved during this time.");
+            _view.ShowInfo("Reservation cancelled.");
             return;
         }
 
+        var details = _view.AskDetails();
+
         try
         {
-            _model.Add(input.StartsAt, input.EndsAt, input.EventName, input.NumPeople, input.ReservedName, input.Notes, input.RoomId);
+            _model.Add(chosen.Slot.StartsAt, chosen.Slot.EndsAt, details.EventName, chosen.Slot.NumPeople,
+                       details.ReservedName, details.Notes, chosen.Room.Id);
             _view.ShowSuccess("Reservation added successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }
@@ -50,18 +50,19 @@ public class ReservationController : ISectionController
         if (reservations.Count == 0) { _view.ShowInfo("No reservations to edit."); return; }
 
         var existing = _view.PickReservation(reservations, "edit");
-        var input = _view.AskReservation(_roomModel.GetAll(), existing);
 
-        if (HasConflict(input, ignoreId: existing.Id))
+        if (ChooseSlotAndRoom(existing) is not { } chosen)
         {
-            _view.ShowError("That room is already reserved during this time.");
+            _view.ShowInfo("Edit cancelled.");
             return;
         }
 
+        var details = _view.AskDetails(existing);
+
         try
         {
-            _model.Update(existing.Id, input.StartsAt, input.EndsAt, input.EventName,
-                          input.NumPeople, input.ReservedName, input.Notes, input.RoomId);
+            _model.Update(existing.Id, chosen.Slot.StartsAt, chosen.Slot.EndsAt, details.EventName,
+                          chosen.Slot.NumPeople, details.ReservedName, details.Notes, chosen.Room.Id);
             _view.ShowSuccess("Reservation updated successfully!");
         }
         catch (Exception ex) { _view.ShowError(ex.Message); }
@@ -88,11 +89,37 @@ public class ReservationController : ISectionController
         catch (Exception ex) { _view.ShowError(ex.Message); }
     }
 
-    // Business rule: the same room can't be booked twice at overlapping times.
-    private bool HasConflict(ReservationInput input, int? ignoreId) =>
-        _model.GetAll().Any(r =>
-            r.RoomId == input.RoomId &&
-            r.Id != ignoreId &&
-            input.StartsAt < r.EndsAt &&
-            input.EndsAt > r.StartsAt);
+    private (ReservationSlot Slot, Room Room)? ChooseSlotAndRoom(Reservation? existing)
+    {
+        while (true)
+        {
+            var slot = _view.AskSlot(existing);
+            var available = GetAvailableRooms(slot, ignoreReservationId: existing?.Id);
+
+            if (available.Count > 0)
+                return (slot, _view.PickAvailableRoom(available, slot, existing?.RoomId));
+
+            var anyBigEnough = _roomModel.GetAll().Any(r => r.Capacity >= slot.NumPeople);
+            _view.ShowError(anyBigEnough
+                ? "All rooms that are big enough are already reserved at that time."
+                : $"No room has enough capacity for {slot.NumPeople} people.");
+
+            if (!_view.Confirm("Try a different time or number of people?"))
+                return null;
+        }
+    }
+
+    private List<Room> GetAvailableRooms(ReservationSlot slot, int? ignoreReservationId)
+    {
+        var busyRoomIds = _model.GetAll()
+            .Where(r => r.Id != ignoreReservationId &&
+                        slot.StartsAt < r.EndsAt &&
+                        slot.EndsAt > r.StartsAt)
+            .Select(r => r.RoomId)
+            .ToHashSet();
+
+        return _roomModel.GetAll()
+            .Where(r => r.Capacity >= slot.NumPeople && !busyRoomIds.Contains(r.Id))
+            .ToList();
+    }
 }
