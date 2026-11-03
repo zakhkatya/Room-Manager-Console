@@ -50,15 +50,15 @@ public class ReservationModel
             reservations.Add(new Reservation
             {
                 Id = reader.GetInt32(0),
-                RoomId = reader.GetInt32(6),
                 StartsAt = DateTime.Parse(reader.GetString(1)),
                 EndsAt = DateTime.Parse(reader.GetString(2)),
                 EventName = reader.GetString(3),
-                NumPeople = reader.GetInt32(1),
-                ReservedName = reader.GetString(4),
-                Notes = reader.IsDBNull(5)
+                NumPeople = reader.GetInt32(4),
+                ReservedName = reader.GetString(5),
+                Notes = reader.IsDBNull(6)
                     ? string.Empty
-                    : reader.GetString(5)
+                    : reader.GetString(6),
+                RoomId = reader.GetInt32(7)
             });
         }
 

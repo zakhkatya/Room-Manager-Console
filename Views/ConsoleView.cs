@@ -6,7 +6,6 @@ namespace RoomReservationManager.Views;
 
 public class ConsoleView : IAppView
 {
-    private const string DateFormat = "yyyy-MM-dd HH:mm";
 
     // ---------- Menus ----------
 
@@ -116,8 +115,8 @@ public class ConsoleView : IAppView
     {
         var eventName = AskText("Event name:", existing?.EventName);
         var reservedName = AskText("Reserved by:", existing?.ReservedName);
-        var startsAt = AskDate("Start", existing?.StartsAt);
-        var endsAt = AskDate("End", existing?.EndsAt, after: startsAt);
+        var startsAt = AskStart(existing?.StartsAt);
+        var endsAt = AskEnd(startsAt, existing?.EndsAt);
         var numPeople = AskInt("Number of people:", existing?.NumPeople);
         var notes = AskText("Notes:", existing?.Notes, allowEmpty: true);
 
@@ -178,26 +177,101 @@ public class ConsoleView : IAppView
         return AnsiConsole.Prompt(prompt);
     }
 
-    private static DateTime AskDate(string label, DateTime? current = null, DateTime? after = null)
+    private static DateTime AskStart(DateTime? current)
     {
-        var prompt = new TextPrompt<string>($"{label} date and time [grey]({DateFormat})[/]:")
-            .Validate(input =>
-            {
-                if (!DateTime.TryParseExact(input, DateFormat,
-                        CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-                    return ValidationResult.Error($"[red]Invalid date. Use {DateFormat}[/]");
+        var day = AskDay("Start", current);
 
-                if (after.HasValue && date <= after.Value)
-                    return ValidationResult.Error("[red]End time must be after start time.[/]");
+        var time = AskTime("Start",
+            t => current is not null || day + t >= DateTime.Now,
+            current?.TimeOfDay);
 
-                return ValidationResult.Success();
-            });
-
-        if (current.HasValue)
-            prompt.DefaultValue(current.Value.ToString(DateFormat));
-
-        var text = AnsiConsole.Prompt(prompt);
-        return DateTime.ParseExact(text, DateFormat, CultureInfo.InvariantCulture);
+        return day + time;
     }
 
+    private static DateTime AskEnd(DateTime start, DateTime? current)
+    {
+        TimeSpan? currentTime = current is not null && current.Value.Date == start.Date
+            ? current.Value.TimeOfDay
+            : null;
+
+        var time = AskTime("End", t => start.Date + t > start, currentTime);
+
+        return start.Date + time;
+    }
+
+    private static DateTime AskDay(string label, DateTime? current)
+    {
+        var days = Enumerable.Range(0, 60).Select(i => DateTime.Today.AddDays(i)).ToList();
+
+        if (current.HasValue)
+        {
+            days.Remove(current.Value.Date);
+            days.Insert(0, current.Value.Date);
+        }
+
+        return AnsiConsole.Prompt(
+            new SelectionPrompt<DateTime>()
+                .Title($"{label} date:")
+                .PageSize(10)
+                .MoreChoicesText("[grey](Move up and down to see more days)[/]")
+                .UseConverter(d => DayLabel(d, current))
+                .AddChoices(days));
+    }
+
+    private static string DayLabel(DateTime d, DateTime? current)
+    {
+        var text = d.ToString("ddd dd.MM.yyyy", CultureInfo.InvariantCulture);
+        if (d == DateTime.Today) text += " (today)";
+        else if (d == DateTime.Today.AddDays(1)) text += " (tomorrow)";
+        if (current.HasValue && d == current.Value.Date) text += " (current)";
+        return text;
+    }
+
+    private static TimeSpan AskTime(string label, Func<TimeSpan, bool> isValid, TimeSpan? current)
+    {
+        var options = new List<TimeSpan>();
+        for (var h = 0; h < 24; h++)
+            for (var m = 0; m < 60; m += 5)
+                options.Add(new TimeSpan(h, m, 0));
+        options = options.Where(isValid).ToList();
+
+        TimeSpan? cur = current.HasValue
+            ? new TimeSpan(current.Value.Hours, current.Value.Minutes, 0)
+            : null;
+        var curValid = cur.HasValue && isValid(cur.Value);
+        if (curValid && !options.Contains(cur!.Value))
+        {
+            options.Add(cur.Value);
+            options.Sort();
+        }
+
+        if (options.Count == 0)
+            return new TimeSpan(23, 59, 0);
+
+        var hours = options.Select(t => t.Hours).Distinct().ToList();
+        if (curValid && hours.Remove(cur!.Value.Hours))
+            hours.Insert(0, cur.Value.Hours);
+
+        var hour = AnsiConsole.Prompt(
+            new SelectionPrompt<int>()
+                .Title($"{label} hour:")
+                .PageSize(10)
+                .MoreChoicesText("[grey](Move up and down to see more hours)[/]")
+                .UseConverter(h => $"{h:00}:__" + (curValid && cur!.Value.Hours == h ? " (current)" : ""))
+                .AddChoices(hours));
+
+        var minutes = options.Where(t => t.Hours == hour).Select(t => t.Minutes).ToList();
+        if (curValid && cur!.Value.Hours == hour && minutes.Remove(cur.Value.Minutes))
+            minutes.Insert(0, cur.Value.Minutes);
+
+        var minute = AnsiConsole.Prompt(
+            new SelectionPrompt<int>()
+                .Title($"{label} minutes:")
+                .PageSize(12)
+                .UseConverter(m => $"{hour:00}:{m:00}" +
+                    (curValid && cur!.Value.Hours == hour && cur.Value.Minutes == m ? " (current)" : ""))
+                .AddChoices(minutes));
+
+        return new TimeSpan(hour, minute, 0);
+    }
 }
