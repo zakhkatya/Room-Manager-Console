@@ -1,3 +1,4 @@
+using RoomReservationManager.Models;
 using RoomReservationManager.Views;
 
 namespace RoomReservationManager.Controllers;
@@ -5,50 +6,42 @@ namespace RoomReservationManager.Controllers;
 public class AppController
 {
     private readonly IAppView _view;
-    private readonly ISectionController _rooms;
-    private readonly ISectionController _reservations;
+    private readonly RoomController _rooms;
+   private readonly ReservationController _reservations;
+    private readonly RoomModel _roomModel;
+    private readonly ReservationModel _reservationModel;
 
-    public AppController(IAppView view, ISectionController rooms, ISectionController reservations)
+    public AppController(
+        IAppView view, 
+        RoomController rooms, 
+        ReservationController reservations, 
+        RoomModel roomModel, 
+        ReservationModel reservationModel)
     {
         _view = view;
         _rooms = rooms;
         _reservations = reservations;
+        _roomModel = roomModel;
+        _reservationModel = reservationModel;
     }
 
     public void Run()
     {
         while (true)
         {
-            _view.Clear();
-
-            switch (_view.ShowMainMenu())
+            switch (_view.ShowMainMenu(_roomModel.GetAll, _reservationModel.GetAll))
             {
-                case MainChoice.Reservations: RunSection("Reservations", _reservations); break;
-                case MainChoice.Rooms:        RunSection("Rooms", _rooms);               break;
+                case MainChoice.Reservations:
+                    _reservations.Run(); 
+                    break;
+                case MainChoice.Rooms:        
+                    _rooms.Run();        
+                    break;
                 case MainChoice.Exit:
+                    _view.Clear();
                     _view.ShowInfo("Goodbye!");
                     return;
             }
-        }
-    }
-
-    private void RunSection(string title, ISectionController section)
-    {
-        while (true)
-        {
-            _view.Clear();
-            var choice = _view.ShowSectionMenu(title);
-            if (choice == SectionChoice.Back) return;
-
-            _view.Clear();
-            switch (choice)
-            {
-                case SectionChoice.Show:   section.Show();   break;
-                case SectionChoice.Add:    section.Add();    break;
-                case SectionChoice.Edit:   section.Edit();   break;
-                case SectionChoice.Delete: section.Delete(); break;
-            }
-            _view.Pause();
         }
     }
 }

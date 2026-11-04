@@ -14,61 +14,73 @@ public class RoomController : ISectionController
         _view = view;
     }
 
-    public void Show()
+    public void Run()
     {
-        var rooms = _model.GetAll();
-        if (rooms.Count == 0) { _view.ShowInfo("No rooms found."); return; }
-        _view.ShowRooms(rooms);
-    }
+        var state = new BrowseState();
 
-    public void Add()
-    {
-        var roomName = _view.AskRoomName();
-        var capacity = _view.AskRoomCapacity();
-
-        try
+        while (true)
         {
-            _model.Add(roomName, capacity);
-            _view.ShowSuccess("Room added successfully!");
+            var result = _view.BrowseRooms(_model.GetAll(), state);
+
+            switch (result.Action)
+            {
+                case BrowseAction.Back:
+                    return;
+                case BrowseAction.Add:    
+                    Save(null, state);
+                    break;
+                case BrowseAction.Edit:
+                    Save(result.Item!, state);
+                    break;
+                case BrowseAction.Delete: Delete(result.Item!, state);
+                    break;
+            }
         }
-        catch (Exception ex) { _view.ShowError(ex.Message); }
     }
 
-    public void Edit()
+    private void Save(Room? existing, BrowseState state)
     {
-        var rooms = _model.GetAll();
-        if (rooms.Count == 0) { _view.ShowInfo("No rooms to edit."); return; }
+        var isNew = existing is null;
 
-        var room = _view.PickRoom(rooms, "edit");
-        var roomName = _view.AskRoomName(room.RoomName);
-        var capacity = _view.AskRoomCapacity(room.Capacity);
-
-        try
+        while (true)
         {
-            _model.Update(room.Id, roomName, capacity);
-            _view.ShowSuccess("Room updated successfully!");
+            _view.BeginForm(isNew ? "New room" : "Edit room");
+
+            var roomName = _view.AskRoomName(existing?.RoomName);
+            var capacity = _view.AskRoomCapacity(existing?.Capacity);
+
+            switch (_view.ReviewForm(isNew ? "Save this room?" : "Save changes?"))
+            {
+                case FormDecision.Restart: continue;
+                case FormDecision.Cancel:  state.Ok("Cancelled - nothing was saved."); return;
+            }
+
+            try
+            {
+                if (existing is null) _model.Add(roomName, capacity);
+                else _model.Update(existing.Id, roomName, capacity);
+
+                state.Ok(isNew ? "Room added." : "Room updated.");
+            }
+            catch (Exception ex) { state.Fail(ex.Message); }
+
+            return;
         }
-        catch (Exception ex) { _view.ShowError(ex.Message); }
     }
 
-    public void Delete()
+    private void Delete(Room room, BrowseState state)
     {
-        var rooms = _model.GetAll();
-        if (rooms.Count == 0) { _view.ShowInfo("No rooms to delete."); return; }
-
-        var room = _view.PickRoom(rooms, "delete");
-
-        if (!_view.Confirm($"Delete room \"{room.RoomName}\"?"))
+        if (!_view.ConfirmDelete("Delete room", $"\"{room.RoomName}\" (capacity {room.Capacity})"))
         {
-            _view.ShowInfo("Deletion cancelled.");
+            state.Ok("Deletion cancelled.");
             return;
         }
 
         try
         {
-            _model.Delete(room.Id);   // throws if the room has reservations
-            _view.ShowSuccess("Room deleted successfully!");
+            _model.Delete(room.Id);
+            state.Ok("Room deleted.");
         }
-        catch (Exception ex) { _view.ShowError(ex.Message); }
+        catch (Exception ex) { state.Fail(ex.Message); }
     }
 }
