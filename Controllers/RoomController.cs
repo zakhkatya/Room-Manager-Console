@@ -3,7 +3,7 @@ using RoomReservationManager.Views;
 
 namespace RoomReservationManager.Controllers;
 
-public class RoomController : ISectionController
+public class RoomController
 {
     private readonly RoomModel _model;
     private readonly IAppView _view;
