@@ -3,30 +3,46 @@ using RoomReservationManager.Models;
 namespace RoomReservationManager.Views;
 
 public enum MainChoice { Reservations, Rooms, Exit }
-public enum SectionChoice { Show, Add, Edit, Delete, Back }
+public enum BrowseAction { Add, Edit, Delete, Back }
+public enum FormDecision { Save, Restart, Cancel }
+
+public record BrowseResult<T>(BrowseAction Action, T? Item) where T : class;
+
+public class BrowseState
+{
+    public string Query { get; set; } = "";
+    public int Index { get; set; }
+    public string? Message { get; set; }
+    public bool MessageIsError { get; set; }
+
+    public void Ok(string message) { Message = message; MessageIsError = false; }
+    public void Fail(string message) { Message = message; MessageIsError = true; }
+}
+
 public record ReservationSlot(DateTime StartsAt, DateTime EndsAt, int NumPeople);
 public record ReservationDetails(string EventName, string ReservedName, string Notes);
 
 public interface IAppView
 {
-    MainChoice ShowMainMenu();
-    SectionChoice ShowSectionMenu(string title);
+    MainChoice ShowMainMenu(Func<IReadOnlyList<Room>> getRooms, Func<IReadOnlyList<Reservation>> getReservations);
 
-    void ShowRooms(IReadOnlyList<Room> rooms);
-    void ShowReservations(IReadOnlyList<Reservation> reservations);
+    BrowseResult<Room> BrowseRooms(IReadOnlyList<Room> rooms, BrowseState state);
+    BrowseResult<Reservation> BrowseReservations(
+        IReadOnlyList<Reservation> reservations,
+        IReadOnlyDictionary<int, string> roomNames,
+        BrowseState state);
 
+    void BeginForm(string title);
     string AskRoomName(string? current = null);
     int AskRoomCapacity(int? current = null);
-    Room PickRoom(IReadOnlyList<Room> rooms, string action);
-    Reservation PickReservation(IReadOnlyList<Reservation> reservations, string action);
     ReservationSlot AskSlot(Reservation? existing = null);
     Room PickAvailableRoom(IReadOnlyList<Room> availableRooms, ReservationSlot slot, int? currentRoomId = null);
     ReservationDetails AskDetails(Reservation? existing = null);
+    FormDecision ReviewForm(string question);
 
+    bool ConfirmDelete(string title, string description);
     bool Confirm(string question);
-    void ShowSuccess(string message);
     void ShowError(string message);
     void ShowInfo(string message);
-    void Pause();
     void Clear();
 }
