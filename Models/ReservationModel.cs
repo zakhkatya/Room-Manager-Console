@@ -13,7 +13,7 @@ public class ReservationModel
         var command = connection.CreateCommand();
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS Reservation (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
                 StartsAt TEXT NOT NULL,
                 EndsAt TEXT NOT NULL,
                 EventName TEXT NOT NULL,
@@ -75,9 +75,7 @@ public class ReservationModel
         string notes,
         int roomId)
     {
-        if (endsAt <= startsAt)
-            throw new ArgumentException(
-                "End time must be after start time.");
+        if (endsAt <= startsAt) throw new ArgumentException("End time must be after start time.");
 
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
