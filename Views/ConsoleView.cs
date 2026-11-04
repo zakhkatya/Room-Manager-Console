@@ -66,8 +66,6 @@ public class ConsoleView : IAppView
                 Markup.Escape(r.Notes)
             ]);
 
-    // Generic pager: arrow keys switch pages and only the table is redrawn (Live display),
-    // not the whole screen.
     private static void ShowPaged<T>(
         string title,
         IReadOnlyList<T> items,
@@ -82,7 +80,7 @@ public class ConsoleView : IAppView
 
         IRenderable Render()
         {
-            var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
+            var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey).Expand();
             foreach (var c in columns) table.AddColumn($"[bold]{c}[/]");
 
             var pageItems = items.Skip(page * pageSize).Take(pageSize).ToList();
@@ -93,20 +91,23 @@ public class ConsoleView : IAppView
                 for (var i = pageItems.Count; i < pageSize; i++)
                     table.AddEmptyRow();
 
-            var footer = pageCount > 1
-                ? $"[grey]Page {page + 1}/{pageCount} ({items.Count} total)  |  Left/Right: change page  |  Home/End: first/last  |  Esc: back[/]"
-                : $"[grey]{items.Count} total[/]";
+            var footerText = pageCount > 1
+                ? $"Page {page + 1}/{pageCount} ({items.Count} total)  |  Left/Right: change page  |  Home/End: first/last  |  Esc: back"
+                : $"{items.Count} total";
+
+            footerText = footerText.PadRight(Math.Max(0, AnsiConsole.Profile.Width - 1));
+            var footer = $"[grey]{footerText}[/]";
 
             return new Rows(table, new Markup(footer));
         }
 
-        if (pageCount == 1)
-        {
-            AnsiConsole.Write(Render());
-            return;
-        }
+        var top = Console.CursorTop;
+        AnsiConsole.Write(Render());
 
-        AnsiConsole.Live(Render()).Start(ctx =>
+        if (pageCount == 1) return;
+
+        AnsiConsole.Cursor.Hide();
+        try
         {
             while (true)
             {
@@ -125,12 +126,17 @@ public class ConsoleView : IAppView
                 };
 
                 if (newPage == page) continue;
-
                 page = newPage;
-                ctx.UpdateTarget(Render());
-                ctx.Refresh();
+
+                Console.SetCursorPosition(0, top);
+                AnsiConsole.Write(Render());
+                Console.Write("\u001b[J");
             }
-        });
+        }
+        finally
+        {
+            AnsiConsole.Cursor.Show();
+        }
     }
 
     // ---------- Pickers (arrow keys instead of typing IDs) ----------
@@ -161,7 +167,6 @@ public class ConsoleView : IAppView
         var numPeople = AskInt("Number of people:", existing?.NumPeople);
         return new ReservationSlot(startsAt, endsAt, numPeople);
     }
-
     public Room PickAvailableRoom(IReadOnlyList<Room> availableRooms, ReservationSlot slot, int? currentRoomId = null) =>
         AnsiConsole.Prompt(
             new SelectionPrompt<Room>()
