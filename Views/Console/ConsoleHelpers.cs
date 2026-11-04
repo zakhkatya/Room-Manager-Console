@@ -30,9 +30,7 @@ public partial class ConsoleView
         return markup + new string(' ', Math.Max(0, width - 1 - visible));
     }
 
-    private static string FormatTime(DateTime t, DateTime now) =>
-        t.Date == now.Date ? t.ToString("HH:mm") : t.ToString("dd.MM HH:mm");
+    private static string FormatTime(DateTime t, DateTime now) => t.Date == now.Date ? t.ToString("HH:mm") : t.ToString("dd.MM HH:mm");
 
-    private static string Truncate(string text, int max) =>
-        text.Length <= max ? text : text[..(max - 1)] + "…";
+    private static string Truncate(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
 }
