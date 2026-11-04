@@ -3,7 +3,7 @@ using RoomReservationManager.Views;
 
 namespace RoomReservationManager.Controllers;
 
-public class ReservationController : ISectionController
+public class ReservationController
 {
     private readonly ReservationModel _model;
     private readonly RoomModel _roomModel;
@@ -16,77 +16,100 @@ public class ReservationController : ISectionController
         _view = view;
     }
 
-    public void Show()
+    public void Run()
     {
-        var reservations = _model.GetAll();
-        if (reservations.Count == 0) { _view.ShowInfo("No reservations found."); return; }
-        _view.ShowReservations(reservations);
+        var state = new BrowseState();
+
+        while (true)
+        {
+            var roomNames = _roomModel.GetAll().ToDictionary(r => r.Id, r => r.RoomName);
+            var result = _view.BrowseReservations(_model.GetAll(), roomNames, state);
+
+            switch (result.Action)
+            {
+                case BrowseAction.Back:    
+                    return;
+                case BrowseAction.Add:    
+                    Add(state);                  
+                    break;
+                case BrowseAction.Edit:   
+                    Save(result.Item!, state);   
+                    break;
+                case BrowseAction.Delete: Delete(result.Item!, state); 
+                    break;
+            }
+        }
     }
 
-    public void Add()
+    private void Add(BrowseState state)
     {
-        if (_roomModel.GetAll().Count == 0) { _view.ShowError("No rooms exist yet. Add a room first."); return; }
-
-        if (ChooseSlotAndRoom(existing: null) is not { } chosen)
+        if (_roomModel.GetAll().Count == 0)
         {
-            _view.ShowInfo("Reservation cancelled.");
+            state.Fail("No rooms exist yet. Add a room first.");
             return;
         }
 
-        var details = _view.AskDetails();
-
-        try
-        {
-            _model.Add(chosen.Slot.StartsAt, chosen.Slot.EndsAt, details.EventName, chosen.Slot.NumPeople,
-                       details.ReservedName, details.Notes, chosen.Room.Id);
-            _view.ShowSuccess("Reservation added successfully!");
-        }
-        catch (Exception ex) { _view.ShowError(ex.Message); }
+        Save(null, state);
     }
 
-    public void Edit()
+    private void Save(Reservation? existing, BrowseState state)
     {
-        var reservations = _model.GetAll();
-        if (reservations.Count == 0) { _view.ShowInfo("No reservations to edit."); return; }
+        var isNew = existing is null;
 
-        var existing = _view.PickReservation(reservations, "edit");
-
-        if (ChooseSlotAndRoom(existing) is not { } chosen)
+        while (true)
         {
-            _view.ShowInfo("Edit cancelled.");
+            _view.BeginForm(isNew ? "New reservation" : "Edit reservation");
+
+            if (ChooseSlotAndRoom(existing) is not { } chosen)
+            {
+                state.Ok("Cancelled - nothing was saved.");
+                return;
+            }
+
+            var details = _view.AskDetails(existing);
+
+            switch (_view.ReviewForm(isNew ? "Save this reservation?" : "Save changes?"))
+            {
+                case FormDecision.Restart: 
+                    continue;
+                case FormDecision.Cancel:  
+                    state.Ok("Cancelled - nothing was saved."); 
+                    return;
+            }
+
+            try
+            {
+                if (existing is null)
+                    _model.Add(chosen.Slot.StartsAt, chosen.Slot.EndsAt, details.EventName, chosen.Slot.NumPeople, details.ReservedName, details.Notes, chosen.Room.Id);
+                else
+                    _model.Update(existing.Id, chosen.Slot.StartsAt, chosen.Slot.EndsAt, details.EventName, chosen.Slot.NumPeople, details.ReservedName, details.Notes, chosen.Room.Id);
+
+                state.Ok(isNew ? "Reservation added." : "Reservation updated.");
+            }
+            catch (Exception ex) { state.Fail(ex.Message); }
+
             return;
         }
-
-        var details = _view.AskDetails(existing);
-
-        try
-        {
-            _model.Update(existing.Id, chosen.Slot.StartsAt, chosen.Slot.EndsAt, details.EventName,
-                          chosen.Slot.NumPeople, details.ReservedName, details.Notes, chosen.Room.Id);
-            _view.ShowSuccess("Reservation updated successfully!");
-        }
-        catch (Exception ex) { _view.ShowError(ex.Message); }
     }
 
-    public void Delete()
+    private void Delete(Reservation reservation, BrowseState state)
     {
-        var reservations = _model.GetAll();
-        if (reservations.Count == 0) { _view.ShowInfo("No reservations to delete."); return; }
+        var roomName = _roomModel.GetAll().FirstOrDefault(r => r.Id == reservation.RoomId)?.RoomName ?? $"#{reservation.RoomId}";
 
-        var reservation = _view.PickReservation(reservations, "delete");
+        var description = $"\"{reservation.EventName}\" by {reservation.ReservedName}, " +$"{reservation.StartsAt:dd.MM.yyyy HH:mm}-{reservation.EndsAt:HH:mm}, {roomName}";
 
-        if (!_view.Confirm($"Delete \"{reservation.EventName}\"?"))
+        if (!_view.ConfirmDelete("Delete reservation", description))
         {
-            _view.ShowInfo("Deletion cancelled.");
+            state.Ok("Deletion cancelled.");
             return;
         }
 
         try
         {
             _model.Delete(reservation.Id);
-            _view.ShowSuccess("Reservation deleted successfully!");
+            state.Ok("Reservation deleted.");
         }
-        catch (Exception ex) { _view.ShowError(ex.Message); }
+        catch (Exception ex) { state.Fail(ex.Message); }
     }
 
     private (ReservationSlot Slot, Room Room)? ChooseSlotAndRoom(Reservation? existing)

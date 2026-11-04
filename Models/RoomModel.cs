@@ -14,8 +14,8 @@ public class RoomModel
         var command = connection.CreateCommand();
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS Room (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                RoomName TEXT NOT NULL,
+                Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
+                RoomName TEXT NOT NULL UNIQUE,
                 Capacity INTEGER NOT NULL
             );
             """;
@@ -55,9 +55,21 @@ public class RoomModel
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // Check if room name already exists
+        var check = connection.CreateCommand();
+        check.CommandText = """
+            SELECT COUNT(*)
+            FROM Room
+            WHERE RoomName = @roomName COLLATE NOCASE
+            """;
+
+        check.Parameters.AddWithValue("@roomName", roomName);
+
+        if (Convert.ToInt32(check.ExecuteScalar()) > 0) throw new InvalidOperationException("A room with this name already exists!");
+
+        //Instert new room
         var command = connection.CreateCommand();
-        command.CommandText =
-            "INSERT INTO Room (RoomName, Capacity) VALUES (@roomName, @capacity)";
+        command.CommandText = "INSERT INTO Room (RoomName, Capacity) VALUES (@roomName, @capacity)";
 
         command.Parameters.AddWithValue("@roomName", roomName);
         command.Parameters.AddWithValue("@capacity", capacity);
@@ -94,8 +106,7 @@ public class RoomModel
         check.CommandText = "SELECT COUNT(*) FROM Reservation WHERE RoomId = @id";
         check.Parameters.AddWithValue("@id", id);
 
-        if (Convert.ToInt32(check.ExecuteScalar()) > 0)
-            throw new InvalidOperationException("This room has reservations. Delete or move them first.");
+        if (Convert.ToInt32(check.ExecuteScalar()) > 0) throw new InvalidOperationException("This room has reservations. Delete or move them first.");
 
         var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM Room WHERE Id = @id";

@@ -19,7 +19,9 @@ internal class Program
         var app = new AppController(
             view,
             new RoomController(roomModel, view),
-            new ReservationController(reservationModel, roomModel, view));
+            new ReservationController(reservationModel, roomModel, view),
+            roomModel,
+            reservationModel);
 
         app.Run();
     }
